@@ -21,6 +21,17 @@ import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import java.time.LocalTime
+import kotlin.time.Duration.Companion.milliseconds
+
+import java.time.Instant
+import java.time.ZoneId
+
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,15 +52,48 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun Greeting(apiBaseUrl: String, modifier: Modifier = Modifier) {
     var statusText by remember { mutableStateOf("Checking backend at $apiBaseUrl/health...") }
+    var currentTime by remember { mutableStateOf(LocalTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)) }
+
 
     LaunchedEffect(apiBaseUrl) {
         statusText = fetchHealthStatus(apiBaseUrl)
     }
 
-    Text(
-        text = statusText,
-        modifier = modifier
-    )
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = LocalTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+            delay(1000.milliseconds)
+        }
+    }
+
+    Column() {
+        Text(
+            text = statusText,
+            modifier = modifier
+                .padding(16.dp)
+        )
+
+        Text(
+            text = "Hello World",
+            modifier = modifier
+                .align(Alignment.CenterHorizontally)
+        )
+
+        Text(
+            text = currentTime.toString(),
+            modifier = modifier
+                .align(Alignment.CenterHorizontally)
+        )
+
+        Text(
+            text = "GMT ${ZoneId.of("America/Vancouver").rules.getOffset(Instant.now())}",
+            modifier = modifier
+                .align(Alignment.CenterHorizontally)
+        )
+
+    }
+
+
 }
 
 private suspend fun fetchHealthStatus(apiBaseUrl: String): String = withContext(Dispatchers.IO) {
