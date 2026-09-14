@@ -28,17 +28,19 @@ import kotlin.time.Duration.Companion.milliseconds
 
 
 private open class Screen(val route: String) {
-    object Greeting : Screen("greeting")
+    object Landing : Screen("landing")
     object Util : Screen("util")
+    object Canvas : Screen("canvas")
+    object Timer : Screen("timer")
 }
 
 @Composable
 fun Navigation(apiBaseUrl: String, modifier: Modifier) {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Screen.Greeting.route, modifier = modifier){
+    NavHost(navController = navController, startDestination = Screen.Landing.route, modifier = modifier){
 
-        composable(Screen.Greeting.route){
-            Greeting(
+        composable(Screen.Landing.route){
+            LandingPage(
                 navController = navController,
                 apiBaseUrl = apiBaseUrl,
                 modifier = modifier
@@ -53,6 +55,22 @@ fun Navigation(apiBaseUrl: String, modifier: Modifier) {
             )
         }
 
+        composable(Screen.Canvas.route){
+            CanvasScreen(
+                navController = navController,
+                apiBaseUrl = apiBaseUrl,
+                modifier = modifier
+            )
+        }
+
+        composable(Screen.Timer.route){
+            TimerScreen(
+                navController = navController,
+                apiBaseUrl = apiBaseUrl,
+                modifier = modifier
+            )
+        }
+
 
     }
 }
@@ -60,7 +78,7 @@ fun Navigation(apiBaseUrl: String, modifier: Modifier) {
 
 
 @Composable
-fun Greeting(apiBaseUrl: String,
+fun UtilScreen(apiBaseUrl: String,
              navController: NavController,
              modifier: Modifier = Modifier) {
     var statusText by remember { mutableStateOf("Checking backend at $apiBaseUrl/health...") }
@@ -103,32 +121,80 @@ fun Greeting(apiBaseUrl: String,
                 .align(Alignment.CenterHorizontally)
         )
 
-        Button(
-            modifier = modifier
-                .align(Alignment.CenterHorizontally),
-            onClick = {
-                navController.navigate(Screen.Util.route)
-            }) {
-            Text(text = "Button")
-
-        }
-
     }
-
 
 }
 
 
 @Composable
-fun UtilScreen(apiBaseUrl: String,
+fun CanvasScreen(apiBaseUrl: String,
                navController: NavController,
                modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center) {
         Text(
-            text = "Util Screen"
+            text = "Canvas Screen"
         )
 
     }
+}
+
+@Composable
+fun TimerScreen(apiBaseUrl: String,
+               navController: NavController,
+               modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center) {
+        Text(
+            text = "Timer Screen"
+        )
+
+    }
+}
+
+
+
+@Composable
+fun LandingPage(apiBaseUrl: String,
+                navController: NavController,
+                modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center) {
+
+
+        Button(
+            modifier = modifier
+                .align(Alignment.CenterHorizontally),
+            onClick = {
+                navController.navigate(Screen.Util.route)
+            }) {
+            Text(text = "Util Screen")
+
+        }
+
+        Button(
+            modifier = modifier
+                .align(Alignment.CenterHorizontally),
+            onClick = {
+                navController.navigate(Screen.Canvas.route)
+            }) {
+            Text(text = "Canvas")
+
+        }
+
+        Button(
+            modifier = modifier
+                .align(Alignment.CenterHorizontally),
+            onClick = {
+                navController.navigate(Screen.Timer.route)
+            }) {
+            Text(text = "Timer")
+
+        }
+    }
+
+
 }
