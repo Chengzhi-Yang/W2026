@@ -17,6 +17,7 @@ kotlin = "2.1.21"
 
 # Android SDK levels (mirrored in app/build.gradle.kts)
 compileSdk = "35"
+navigationCompose = "2.10.1"
 targetSdk = "35"
 minSdk = "26"
 
@@ -33,6 +34,7 @@ espressoCore = "3.6.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

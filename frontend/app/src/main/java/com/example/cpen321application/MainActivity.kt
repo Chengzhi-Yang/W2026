@@ -7,29 +7,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.cpen321application.ui.theme.CPEN321ApplicationTheme
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-import androidx.compose.foundation.layout.Column
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import java.time.LocalTime
-import kotlin.time.Duration.Companion.milliseconds
-
-import java.time.Instant
-import java.time.ZoneId
 
 
 class MainActivity : ComponentActivity() {
@@ -39,7 +22,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             CPEN321ApplicationTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
+                    Navigation(
                         apiBaseUrl = BuildConfig.API_BASE_URL,
                         modifier = Modifier.padding(innerPadding)
                     )
@@ -49,54 +32,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun Greeting(apiBaseUrl: String, modifier: Modifier = Modifier) {
-    var statusText by remember { mutableStateOf("Checking backend at $apiBaseUrl/health...") }
-    var currentTime by remember { mutableStateOf(LocalTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)) }
 
 
-    LaunchedEffect(apiBaseUrl) {
-        statusText = fetchHealthStatus(apiBaseUrl)
-    }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            currentTime = LocalTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
-            delay(1000.milliseconds)
-        }
-    }
-
-    Column() {
-        Text(
-            text = statusText,
-            modifier = modifier
-                .padding(16.dp)
-        )
-
-        Text(
-            text = "Hello World",
-            modifier = modifier
-                .align(Alignment.CenterHorizontally)
-        )
-
-        Text(
-            text = currentTime.toString(),
-            modifier = modifier
-                .align(Alignment.CenterHorizontally)
-        )
-
-        Text(
-            text = "GMT ${ZoneId.of("America/Vancouver").rules.getOffset(Instant.now())}",
-            modifier = modifier
-                .align(Alignment.CenterHorizontally)
-        )
-
-    }
-
-
-}
-
-private suspend fun fetchHealthStatus(apiBaseUrl: String): String = withContext(Dispatchers.IO) {
+suspend fun fetchHealthStatus(apiBaseUrl: String): String = withContext(Dispatchers.IO) {
     val healthUrl = "${apiBaseUrl.trimEnd('/')}/health"
     try {
         val connection = (URL(healthUrl).openConnection() as HttpURLConnection).apply {
