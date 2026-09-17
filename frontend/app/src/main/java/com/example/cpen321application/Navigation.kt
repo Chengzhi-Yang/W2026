@@ -2,13 +2,20 @@ package com.example.cpen321application
 
 import android.graphics.Point
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -151,7 +158,7 @@ fun UtilScreen(apiBaseUrl: String,
     }
 
     Box(modifier = modifier.fillMaxSize()){
-        Column() {
+        Column {
             Text(
                 text = statusText,
                 modifier = modifier
@@ -266,13 +273,103 @@ fun TimerScreen(apiBaseUrl: String,
                navController: NavController,
                modifier: Modifier = Modifier) {
 
+    val hourListState = rememberLazyListState()
+    val hourSnapFlingBehavior = rememberSnapFlingBehavior(lazyListState = hourListState)
+    val minuteListState = rememberLazyListState()
+    val minuteSnapFlingBehavior = rememberSnapFlingBehavior(lazyListState = minuteListState)
+    val secondListState = rememberLazyListState()
+    val secondSnapFlingBehavior = rememberSnapFlingBehavior(lazyListState = secondListState)
+
+
+    val columnHeight = 120.dp
+    val itemHeight = 25.dp
+    val verticalPadding = (columnHeight - itemHeight) / 2
+
+
+
     Box(modifier = modifier.fillMaxSize()){
-        Column(modifier = modifier.fillMaxSize(),
+        Column(
+            modifier = modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center) {
+        ) {
             Text(
                 text = "Timer Screen"
             )
+
+            Row(
+                modifier = modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+
+            ){
+
+                LazyColumn(
+                    state = hourListState,
+                    flingBehavior = hourSnapFlingBehavior,
+                    modifier = Modifier
+                        .height(columnHeight)
+                        .padding(horizontal = 5.dp)
+                        .width(20.dp),
+
+                    contentPadding = PaddingValues(vertical = verticalPadding)
+                    ) {
+                    items(24) { index ->
+                        Text(
+                            modifier = Modifier.height(itemHeight),
+                            text = "$index"
+                        )
+                    }
+                }
+
+                Text(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    text = "Hours : "
+                )
+
+                LazyColumn(
+                    state = minuteListState,
+                    flingBehavior = minuteSnapFlingBehavior,
+                    modifier = Modifier
+                        .height(columnHeight)
+                        .padding(horizontal = 5.dp)
+                        .width(20.dp),
+                    contentPadding = PaddingValues(vertical = verticalPadding)
+                ) {
+                    items(60) { index ->
+                        Text(
+                            modifier = Modifier.height(itemHeight),
+                            text = "$index"
+                        )
+                    }
+                }
+
+                Text(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    text = "Minutes : "
+                )
+
+                LazyColumn(
+                    state = secondListState,
+                    flingBehavior = secondSnapFlingBehavior,
+                    modifier = Modifier
+                        .height(columnHeight)
+                        .padding(horizontal = 5.dp)
+                        .width(20.dp),
+                    contentPadding = PaddingValues(vertical = verticalPadding)
+                ) {
+                    items(60) { index ->
+                        Text(
+                            modifier = Modifier.height(itemHeight),
+                            text = "$index"
+                        )
+                    }
+                }
+
+                Text(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    text = "Seconds "
+                )
+            }
 
         }
 
