@@ -1,6 +1,7 @@
 package com.example.cpen321application
 
 import android.graphics.Point
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
@@ -19,17 +20,21 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +42,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -56,6 +63,13 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.core.graphics.toColorInt
+import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 
 private open class Screen(val route: String) {
@@ -63,20 +77,67 @@ private open class Screen(val route: String) {
     object Util : Screen("util")
     object Canvas : Screen("canvas")
     object Timer : Screen("timer")
+
+    object Surprise : Screen("surprise")
 }
 
 @Serializable
 data class PixelUpdate(val x: Int, val y: Int, val color: String)
 
+
+suspend fun fetchRandomXkcd(
+    client: OkHttpClient): Pair<String, String> = withContext(Dispatchers.IO) {
+
+        var result: Pair<String, String>? = null
+
+        while (result == null) {
+            val randomImageNum = (1..3299).random()
+            val url = "https://xkcd.com/$randomImageNum/info.0.json"
+            try {
+                val response = client.newCall(Request.Builder().url(url).build()).execute()
+                val jsonString = response.body?.string() ?: ""
+                val json = Json.parseToJsonElement(jsonString).jsonObject
+                val originalTitle = json["safe_title"]?.jsonPrimitive?.content ?: ""
+                val imgUrl = json["img"]?.jsonPrimitive?.content ?: ""
+
+                if (originalTitle.isNotBlank() && imgUrl.isNotBlank()) {
+                    result = imgUrl to originalTitle.lowercase().replace(" ", "_")
+                }
+            } catch (e: Exception) {
+                delay(1000.milliseconds)
+            }
+        }
+        result
+}
+
+
 @Composable
 fun Navigation(apiBaseUrl: String, modifier: Modifier) {
     val navController = rememberNavController()
+
+    var imageUrl  by remember { mutableStateOf<String?>(null) }
+    var comicTitle by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    val client = remember { OkHttpClient() }
+
+    val triggerPreload = {
+        imageUrl = null
+        scope.launch {
+            val data = fetchRandomXkcd(client)
+
+            data.let { pair ->
+                imageUrl = pair.first
+                comicTitle = pair.second
+            }
+        }
+    }
+
     NavHost(navController = navController, startDestination = Screen.Landing.route, modifier = modifier){
 
         composable(Screen.Landing.route){
             LandingPage(
                 navController = navController,
-                apiBaseUrl = apiBaseUrl,
                 modifier = modifier
             )
         }
@@ -100,8 +161,18 @@ fun Navigation(apiBaseUrl: String, modifier: Modifier) {
         composable(Screen.Timer.route){
             TimerScreen(
                 navController = navController,
-                apiBaseUrl = apiBaseUrl,
-                modifier = modifier
+                modifier = modifier,
+
+                onStartTimer = triggerPreload,
+                onEnterScreen = triggerPreload
+            )
+        }
+
+        composable(Screen.Surprise.route){
+            SurpriseScreen(
+                imageUrl = imageUrl,
+                navController = navController,
+                modifier = modifier,
             )
         }
 
@@ -269,9 +340,14 @@ fun CanvasScreen(
 }
 
 @Composable
-fun TimerScreen(apiBaseUrl: String,
-               navController: NavController,
-               modifier: Modifier = Modifier) {
+fun TimerScreen(
+    navController: NavController,
+    modifier: Modifier = Modifier,
+    onStartTimer: () -> Job,
+    onEnterScreen: () -> Job,
+) {
+
+    val context = LocalContext.current
 
     val hourListState = rememberLazyListState()
     val hourSnapFlingBehavior = rememberSnapFlingBehavior(lazyListState = hourListState)
@@ -285,7 +361,27 @@ fun TimerScreen(apiBaseUrl: String,
     val itemHeight = 25.dp
     val verticalPadding = (columnHeight - itemHeight) / 2
 
+    var showCountDownPopUp by remember { mutableStateOf(false) }
+    var timeRemaining by remember { mutableIntStateOf(0) }
 
+    LaunchedEffect(Unit) {
+        onEnterScreen()
+    }
+
+
+    if (showCountDownPopUp) {
+        LaunchedEffect(timeRemaining) {
+            while (timeRemaining > 0) {
+                delay(1000.milliseconds)
+                timeRemaining--
+            }
+            if (timeRemaining == 0) {
+                delay(500.milliseconds)
+                showCountDownPopUp = false
+                navController.navigate(Screen.Surprise.route)
+            }
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()){
         Column(
@@ -371,6 +467,63 @@ fun TimerScreen(apiBaseUrl: String,
                 )
             }
 
+
+            Button(
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 20.dp,
+                ),
+                shape = RoundedCornerShape(5.dp),
+                modifier = Modifier
+                    .width(120.dp)
+                    .padding(10.dp),
+                onClick = {
+                    val hours = hourListState.firstVisibleItemIndex
+                    val minutes = minuteListState.firstVisibleItemIndex
+                    val seconds = secondListState.firstVisibleItemIndex
+
+                    val totalSeconds = hours*3600 + minutes*60 + seconds
+
+                    Toast.makeText(
+                        context,
+                        "Timer started for: $hours h :  $minutes m : ${seconds}s",
+                        Toast.LENGTH_SHORT
+                    ).show()
+
+                    if (totalSeconds > 0) {
+                        timeRemaining = totalSeconds
+                        showCountDownPopUp = true
+                    }
+
+                    onStartTimer()
+
+                }) {
+                Text(text = "Start")
+            }
+
+        }
+
+        if (showCountDownPopUp) {
+            AlertDialog(
+                onDismissRequest = { showCountDownPopUp = false },
+                title = { Text("Time Remaining") },
+                text = {
+                    val hourRemaining = timeRemaining / 3600
+                    val minuteRemaining = (timeRemaining % 3600) / 60
+                    val secondRemaining = timeRemaining % 60
+
+                    val timeRemainingFormatted = "$hourRemaining h : $minuteRemaining m : $secondRemaining s"
+
+                    Text(
+                        text = timeRemainingFormatted,
+                        style = typography.headlineLarge
+                    )
+                },
+                confirmButton = {
+                    Button(onClick = { showCountDownPopUp = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
 
         HomeButton(navController = navController)
@@ -378,10 +531,43 @@ fun TimerScreen(apiBaseUrl: String,
 }
 
 
+@Composable
+fun SurpriseScreen(
+    navController: NavController,
+    modifier: Modifier = Modifier,
+    imageUrl : String?
+) {
+
+
+    Box(modifier = modifier.fillMaxSize()){
+
+        Text(
+            text = "Loading...",
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 120.dp),
+            style = typography.bodyLarge
+        )
+
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = "Surprise",
+            alignment = Alignment.TopCenter,
+            modifier = modifier
+                .fillMaxSize()
+                .padding(top = 60.dp, start = 5.dp, end = 5.dp),
+
+            contentScale = ContentScale.Fit
+        )
+
+        HomeButton(navController = navController)
+    }
+
+}
+
 
 @Composable
-fun LandingPage(apiBaseUrl: String,
-                navController: NavController,
+fun LandingPage(navController: NavController,
                 modifier: Modifier = Modifier) {
 
     val buttonModifier = Modifier.width(200.dp)
