@@ -1,6 +1,7 @@
 import express, { Router } from 'express';
-import { getUser } from '../controllers/user.controller';
+import { getUser, login } from '../controllers/user.controller';
 
 export const userRouter = Router();
 
-userRouter.get('/', getUser);
+userRouter.get('/user', getUser);
+userRouter.post('/login', login);

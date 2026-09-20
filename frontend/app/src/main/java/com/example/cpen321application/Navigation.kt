@@ -1,5 +1,6 @@
 package com.example.cpen321application
 
+import android.app.Activity
 import android.graphics.Point
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
@@ -77,13 +78,29 @@ private open class Screen(val route: String) {
     object Util : Screen("util")
     object Canvas : Screen("canvas")
     object Timer : Screen("timer")
-
     object Surprise : Screen("surprise")
 }
 
 @Serializable
-data class PixelUpdate(val x: Int, val y: Int, val color: String)
+data class PixelUpdate(
+    val x: Int,
+    val y: Int,
+    val color: String
+)
 
+@Serializable
+data class UserResponse(
+    val firstName: String,
+    val lastName: String
+)
+
+@Serializable
+data class InfoResponse(
+    val time: String? = null,
+    val serverIp: String? = null,
+    val clientIp: String? = null,
+    val timeZone: String? = null
+)
 
 suspend fun fetchRandomXkcd(
     client: OkHttpClient): Pair<String, String> = withContext(Dispatchers.IO) {
@@ -104,7 +121,8 @@ suspend fun fetchRandomXkcd(
                     result = imgUrl to originalTitle.lowercase().replace(" ", "_")
                 }
             } catch (e: Exception) {
-                delay(1000.milliseconds)
+                delay(500.milliseconds)
+                e.printStackTrace()
             }
         }
         result
@@ -137,6 +155,7 @@ fun Navigation(apiBaseUrl: String, modifier: Modifier) {
 
         composable(Screen.Landing.route){
             LandingPage(
+                apiBaseUrl = apiBaseUrl,
                 navController = navController,
                 modifier = modifier
             )
@@ -210,57 +229,88 @@ fun DrawScope.pixel(point: Point, color: Color) {
 }
 
 @Composable
-fun UtilScreen(apiBaseUrl: String,
-             navController: NavController,
-             modifier: Modifier = Modifier) {
-    var statusText by remember { mutableStateOf("Checking backend at $apiBaseUrl/health...") }
-    var currentTime by remember { mutableStateOf(LocalTime.now().truncatedTo(ChronoUnit.SECONDS)) }
+fun UtilScreen(
+    apiBaseUrl: String,
+    navController: NavController,
+    modifier: Modifier = Modifier,
+) {
+    var statusText by remember { mutableStateOf("Checking backend...") }
+    var fullName by remember { mutableStateOf("Loading...") }
+    var clientIp by remember { mutableStateOf("Loading...") }
+    var serverIp by remember { mutableStateOf("Loading...") }
+    var serverTime by remember { mutableStateOf("Loading...") }
 
+    // Helper to format GMT offset (e.g., +00:00)
+    fun formatOffset(instant: Instant, zoneId: ZoneId): String {
+        val offset = zoneId.rules.getOffset(instant)
+        return offset.id.let { if (it == "Z") "+00:00" else it }
+    }
 
     LaunchedEffect(apiBaseUrl) {
-        statusText = fetchHealthStatus(apiBaseUrl)
-    }
+        // 1. Health
+        launch { statusText = fetchHealthStatus(apiBaseUrl) }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            currentTime = LocalTime.now().truncatedTo(ChronoUnit.SECONDS)
-            delay(1000.milliseconds)
+        // 2. Name
+        launch {
+            try {
+                val json = fetchName(apiBaseUrl)
+                val user = Json.decodeFromString<UserResponse>(json)
+                fullName = "${user.firstName} ${user.lastName}"
+            } catch (t: Throwable) {
+                fullName = "Error"
+                t.printStackTrace()
+            }
+        }
+
+        // 3. IP
+        launch {
+            try {
+                val json = fetchIp(apiBaseUrl)
+                val info = Json.decodeFromString<InfoResponse>(json)
+                serverIp = info.serverIp ?: "Unknown"
+                clientIp = info.clientIp ?: "Unknown"
+            } catch (t: Throwable) {
+                serverIp = "Error"; clientIp = "Error"
+                t.printStackTrace()
+            }
+        }
+
+        // 4. Time
+        launch {
+            try {
+                val json = fetchTime(apiBaseUrl)
+                val info = Json.decodeFromString<InfoResponse>(json)
+                val iso = info.time
+                val tz = info.timeZone
+                if (iso != null && tz != null) {
+                    val inst = Instant.parse(iso)
+                    val zid = ZoneId.of(tz)
+                    val local = inst.atZone(zid).toLocalTime().truncatedTo(ChronoUnit.SECONDS)
+                    serverTime = "$local GMT ${formatOffset(inst, zid)}"
+                } else { serverTime = "Unknown" }
+            } catch (t: Throwable) {
+                serverTime = "Error"
+                t.printStackTrace()
+            }
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()){
+    Box(modifier = modifier.fillMaxSize().padding(10.dp)) {
         Column {
-            Text(
-                text = statusText,
-                modifier = modifier
-                    .padding(16.dp)
-            )
+            Text(text = statusText, modifier = Modifier.padding(bottom = 10.dp))
+            Text(text = "Name: $fullName")
+            Text(text = "Client IP: $clientIp")
+            Text(text = "Server IP: $serverIp")
+            Text(text = "Server Time: $serverTime")
 
-            Text(
-                text = "Hello World",
-                modifier = modifier
-                    .align(Alignment.CenterHorizontally)
-            )
-
-            Text(
-                text = currentTime.toString(),
-                modifier = modifier
-                    .align(Alignment.CenterHorizontally)
-            )
-
-            Text(
-                text = "GMT ${ZoneId.of("America/Vancouver").rules.getOffset(Instant.now())}",
-                modifier = modifier
-                    .align(Alignment.CenterHorizontally)
-            )
-
+            // Fixed Client Time Logic
+            val now = Instant.now()
+            val sysZone = ZoneId.systemDefault()
+            val clientLocalTime = LocalTime.now().truncatedTo(ChronoUnit.SECONDS)
+            Text(text = "Client time: $clientLocalTime GMT ${formatOffset(now, sysZone)}")
         }
-
-
-
         HomeButton(navController = navController)
     }
-
 }
 
 
@@ -567,10 +617,15 @@ fun SurpriseScreen(
 
 
 @Composable
-fun LandingPage(navController: NavController,
-                modifier: Modifier = Modifier) {
+fun LandingPage(
+    apiBaseUrl: String,
+    navController: NavController,
+    modifier: Modifier = Modifier) {
 
     val buttonModifier = Modifier.width(200.dp)
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val scope = rememberCoroutineScope()
 
     Column(modifier = modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -584,9 +639,22 @@ fun LandingPage(navController: NavController,
             shape = RoundedCornerShape(5.dp),
             modifier = buttonModifier,
             onClick = {
-                navController.navigate(Screen.Util.route)
+                if (activity == null) {
+                    Toast.makeText(context, "Error: Activity context not found", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+
+                scope.launch {
+                    val name = loginWithGoogle(activity, apiBaseUrl)
+                    if (name != null) {
+                        Toast.makeText(context, "Welcome $name", Toast.LENGTH_SHORT).show()
+                        navController.navigate(Screen.Util.route)
+                    } else {
+                        Toast.makeText(context, "Login failed", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }) {
-            Text(text = "Util Screen")
+            Text(text = "Login / Util Screen")
 
         }
 
