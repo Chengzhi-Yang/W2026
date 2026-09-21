@@ -329,7 +329,9 @@ fun CanvasScreen(
 
     LaunchedEffect(apiBaseUrl) {
         val client = OkHttpClient()
-        val wsUrl = "ws://10.0.2.2:3000/ws/pixels"
+        val host = apiBaseUrl.removePrefix("http://").removeSuffix(":3000").trimEnd('/')
+        val wsUrl = "ws://$host:3000/ws/pixels"
+
         val request = Request.Builder().url(wsUrl).build()
 
         val listener = object : WebSocketListener() {
