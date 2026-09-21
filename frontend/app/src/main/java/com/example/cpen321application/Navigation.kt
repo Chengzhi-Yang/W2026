@@ -1,6 +1,5 @@
 package com.example.cpen321application
 
-import android.app.Activity
 import android.graphics.Point
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
@@ -133,6 +132,8 @@ suspend fun fetchRandomXkcd(
 fun Navigation(apiBaseUrl: String, modifier: Modifier) {
     val navController = rememberNavController()
 
+    var loggedInUserName by remember { mutableStateOf("Guest User") }
+
     var imageUrl  by remember { mutableStateOf<String?>(null) }
     var comicTitle by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -155,9 +156,10 @@ fun Navigation(apiBaseUrl: String, modifier: Modifier) {
 
         composable(Screen.Landing.route){
             LandingPage(
-                apiBaseUrl = apiBaseUrl,
                 navController = navController,
-                modifier = modifier
+                modifier = modifier,
+
+                onLoginSuccess = { name -> loggedInUserName = name }
             )
         }
 
@@ -165,7 +167,8 @@ fun Navigation(apiBaseUrl: String, modifier: Modifier) {
             UtilScreen(
                 navController = navController,
                 apiBaseUrl = apiBaseUrl,
-                modifier = modifier
+                modifier = modifier,
+                userName = loggedInUserName
             )
         }
 
@@ -233,6 +236,7 @@ fun UtilScreen(
     apiBaseUrl: String,
     navController: NavController,
     modifier: Modifier = Modifier,
+    userName: String
 ) {
     var statusText by remember { mutableStateOf("Checking backend...") }
     var fullName by remember { mutableStateOf("Loading...") }
@@ -299,6 +303,7 @@ fun UtilScreen(
         Column {
             Text(text = statusText, modifier = Modifier.padding(bottom = 10.dp))
             Text(text = "Name: $fullName")
+            Text(text = "Logged in user: $userName")
             Text(text = "Client IP: $clientIp")
             Text(text = "Server IP: $serverIp")
             Text(text = "Server Time: $serverTime")
@@ -618,13 +623,13 @@ fun SurpriseScreen(
 
 @Composable
 fun LandingPage(
-    apiBaseUrl: String,
     navController: NavController,
-    modifier: Modifier = Modifier) {
+    modifier: Modifier = Modifier,
+    onLoginSuccess: (String) -> Unit
+) {
 
     val buttonModifier = Modifier.width(200.dp)
     val context = LocalContext.current
-    val activity = context as? Activity
     val scope = rememberCoroutineScope()
 
     Column(modifier = modifier.fillMaxSize(),
@@ -639,18 +644,11 @@ fun LandingPage(
             shape = RoundedCornerShape(5.dp),
             modifier = buttonModifier,
             onClick = {
-                if (activity == null) {
-                    Toast.makeText(context, "Error: Activity context not found", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
-
                 scope.launch {
-                    val name = loginWithGoogle(activity, apiBaseUrl)
+                    val name = loginWithGoogle(context)
                     if (name != null) {
-                        Toast.makeText(context, "Welcome $name", Toast.LENGTH_SHORT).show()
+                        onLoginSuccess(name) // Pass name back to Navigation
                         navController.navigate(Screen.Util.route)
-                    } else {
-                        Toast.makeText(context, "Login failed", Toast.LENGTH_SHORT).show()
                     }
                 }
             }) {

@@ -2,8 +2,6 @@ package com.example.cpen321application
 
 import android.content.Context
 import android.os.Bundle
-import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -20,7 +18,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 
 
@@ -137,75 +134,27 @@ suspend fun fetchTime(apiBaseUrl: String): String = withContext(Dispatchers.IO) 
 }
 
 
-suspend fun loginWithGoogle(context: Context, apiBaseUrl: String): String? {
+suspend fun loginWithGoogle(context: Context): String? = withContext(Dispatchers.Main) {
     val credentialManager = CredentialManager.create(context)
-    val clientId = BuildConfig.GOOGLE_CLIENT_ID
-
-    // 1. Diagnostic Log
-    Log.d("Login", "Starting login process with Client ID: $clientId")
-
-    if (clientId.isEmpty()) {
-        withContext(Dispatchers.Main) {
-            Toast.makeText(context, "Client ID is empty! Check local.properties", Toast.LENGTH_LONG).show()
-        }
-        return null
-    }
-
-    val googleIdTokenRequestOptions = GetGoogleIdOption.Builder()
-        .setFilterByAuthorizedAccounts(false) // Show all accounts
-        .setServerClientId(clientId)
-        .build()
-
     val request = GetCredentialRequest.Builder()
-        .addCredentialOption(googleIdTokenRequestOptions)
+        .addCredentialOption(GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(BuildConfig.GOOGLE_CLIENT_ID)
+            .build())
         .build()
 
-    return try {
-        // 2. We MUST use the Activity context for the UI to show
+    try {
         val result = credentialManager.getCredential(context, request)
-
         val credential = result.credential
+
         if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
             val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-            sendTokenToBackend(apiBaseUrl, googleIdTokenCredential.idToken)
-        } else {
-            Log.w("Login", "Unexpected credential type: ${credential.type}")
-            null
-        }
+
+            // Return the name found inside the Google credential directly
+            "${googleIdTokenCredential.givenName} ${googleIdTokenCredential.familyName}"
+        } else null
     } catch (e: Exception) {
-        // 3. This will tell us the exact error in Logcat and on screen
-        Log.e("Login", "CredentialManager error: ${e.javaClass.simpleName} - ${e.message}", e)
-        withContext(Dispatchers.Main) {
-            Toast.makeText(context, "Error: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-        }
-        null
-    }
-}
-
-private suspend fun sendTokenToBackend(apiBaseUrl: String, idToken: String): String? = withContext(Dispatchers.IO) {
-    val url = URL("${apiBaseUrl.trimEnd('/')}/login")
-    try {
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-        }
-
-        val jsonInputString = "{\"idToken\": \"$idToken\"}"
-        connection.outputStream.use { it.write(jsonInputString.toByteArray()) }
-
-        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(response)
-            "${json.getString("firstName")} ${json.getString("lastName")}"
-        } else {
-            // Read the error message from the backend
-            val errorResponse = connection.errorStream?.bufferedReader()?.use { it.readText() }
-            Log.e("Login", "Backend failed with code ${connection.responseCode}: $errorResponse")
-            null
-        }
-    } catch (e: Exception) {
-        Log.e("Login", "Network exception sending token: ${e.message}", e)
+        e.printStackTrace()
         null
     }
 }
